@@ -1,0 +1,7 @@
+
+[Unit]
+Description=Net watchdog (reboot if vmbr0/eno1 down)
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/net-reboot-if-down.sh

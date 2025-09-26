@@ -1,0 +1,17 @@
+
+# Example: Persist NIC mitigations on Proxmox
+# Drop these lines into /etc/network/interfaces (merge with your existing config)
+# Adjust the address/gateway if needed.
+
+auto eno1
+iface eno1 inet manual
+    pre-up  /sbin/ethtool --set-eee eno1 eee off || true
+    post-up /sbin/ethtool -K eno1 tso off gso off gro off || true
+
+auto vmbr0
+iface vmbr0 inet static
+    address 192.168.178.79/24
+    gateway 192.168.178.1
+    bridge-ports eno1
+    bridge-stp off
+    bridge-fd 0
