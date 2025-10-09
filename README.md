@@ -1,34 +1,60 @@
+# Proxmox Network Watchdog (e1000e hang mitigation / safe bridge-only edition)
 
-# Proxmox Network Watchdog (e1000e hang mitigation)
+This package provides a **systemd-based watchdog** that monitors the Proxmox management network
+(`vmbr0` → `eno1`) and performs **non-destructive recovery** if connectivity is lost.
 
-This package adds a **systemd-based watchdog** that reboots a Proxmox host if management networking
-(`vmbr0` → `eno1`) is down for two consecutive checks (default: every 2 minutes). It also includes
-templates to **disable EEE + TSO/GSO/GRO** on the Intel e1000e NIC, and enables the **hardware watchdog**
-(iTCO_wdt) via Proxmox's `watchdog-mux`.
+Unlike the legacy version, this edition **does not bounce the physical NIC or reload the `e1000e` driver**.
+Instead, it:
+- Pings multiple IP targets (gateway + public addresses)
+- Waits for consecutive failures before acting
+- Cycles only the **bridge (`vmbr0`)** on failure
+- Optionally reboots the host (rate-limited) if recovery fails
+- Loads the Intel hardware watchdog (`iTCO_wdt`) for redundancy
 
-Tested on: Lenovo M920q (Intel i219), Proxmox VE 8/9.
+Tested on: **Lenovo M920q (Intel i219)**, Proxmox VE 8 / 9.
 
-## What it installs
-- `/usr/local/sbin/net-reboot-if-down.sh` – network check + auto-recovery + snapshot + reboot
-- `net-watch.service` + `net-watch.timer` – run every 2 minutes
-- enables `watchdog-mux` (if available) and loads `iTCO_wdt` on boot
+---
 
-## Quick install
+## 📁 Installed file locations
+
+| File | Purpose |
+|------|----------|
+| `/usr/local/sbin/net-reboot-if-down.sh` | Main watchdog script (bridge-only recovery logic) |
+| `/etc/systemd/system/net-watch.service` | Systemd service that executes the script |
+| `/etc/systemd/system/net-watch.timer` | Systemd timer (default: every 2 minutes) |
+| `/etc/modules-load.d/watchdog.conf` | Ensures `iTCO_wdt` loads at boot |
+| `/usr/local/bin/install.sh` | Installer script (this repo) |
+| `/usr/local/bin/uninstall.sh` | Uninstaller script (this repo) |
+
+---
+
+## ⚙️ What it does
+
+1. Checks connectivity to several IPs (`192.168.178.1`, `1.1.1.1`, `8.8.8.8` by default)  
+2. If all fail × 3 in a row → brings `vmbr0` **down/up** (does *not* touch `eno1`)  
+3. If still unreachable → **reboots** the host (rate-limited, cooldown = 30 min)  
+4. Loads `iTCO_wdt` for hardware watchdog protection (if supported)
+
+---
+
+## 🚀 Quick install
+
 ```bash
 # as root
 ./install.sh
 ```
 
 This will:
-1. Copy the script and systemd units into place
-2. Load `iTCO_wdt` now and at boot
-3. Start the timer and (if present) start `watchdog-mux`
+1. Copy the script and systemd units into place  
+2. Load and persist the Intel hardware watchdog (`iTCO_wdt`)  
+3. Enable and start the `net-watch.timer`
 
-> The watchdog reboots the host only if **two consecutive** checks fail. On the **first failure** it attempts
-> to recover by bouncing `eno1` and reloading `e1000e`.
+---
 
-## Optional: NIC mitigations (recommended)
-To reduce the chance of Intel e1000e "Hardware Unit Hang", apply these lines to your `/etc/network/interfaces`:
+## 🧰 Optional: NIC mitigations (recommended)
+
+Add these lines to your `/etc/network/interfaces` to disable energy-saving features
+that can cause `e1000e` link flaps:
 
 ```ini
 auto eno1
@@ -37,23 +63,30 @@ iface eno1 inet manual
     post-up /sbin/ethtool -K eno1 tso off gso off gro off || true
 ```
 
-If you want a ready-to-paste example including your current bridge config,
-see: `interfaces/eno1-vmbr0-mitigations.example`
-
-Apply and reload:
+Then reload:
 ```bash
 ifreload -a
 # or: systemctl restart networking
 ```
 
-## Optional: Kernel parameters
-If hangs persist, consider adding to `/etc/default/grub`:
+---
+
+## 🧩 Optional: Kernel parameters
+
+If link resets still appear in `dmesg`, add the following to `/etc/default/grub`:
 ```
 pcie_aspm=off e1000e.SmartPowerDownEnable=0
 ```
-then `update-grub` and reboot.
+Then run:
+```bash
+update-grub
+reboot
+```
 
-## Verify
+---
+
+## ✅ Verify operation
+
 ```bash
 systemctl list-timers --all | grep net-watch
 journalctl -t net-watch -n 50 --no-pager
@@ -61,11 +94,27 @@ systemctl status watchdog-mux --no-pager
 lsmod | grep -E 'iTCO|wdt'
 ```
 
-## Uninstall
+---
+
+## ❌ Uninstall
+
 ```bash
 ./uninstall.sh
 ```
 
-This disables the timer and removes the installed files (does not modify your network config).
-```
+This disables the timer and removes:
+- `/usr/local/sbin/net-reboot-if-down.sh`
+- `/etc/systemd/system/net-watch.{service,timer}`
 
+Hardware watchdog modules (`iTCO_wdt`) and `watchdog-mux` are left untouched.
+
+---
+
+## 🧾 Changelog Highlights
+
+**v2.0.0 — 2025-10-09**
+- Added safe bridge-only recovery logic (no `eno1` down/up)
+- Multi-target IP checks (no DNS dependency)
+- Boot grace period and reboot rate limiting
+- Cleaner installer/uninstaller with colored output
+- Updated documentation and file layout table

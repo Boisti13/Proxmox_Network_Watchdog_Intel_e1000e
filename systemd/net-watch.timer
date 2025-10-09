@@ -1,11 +1,11 @@
-
 [Unit]
-Description=Run net-watch every 2 minutes
+Description=Run net-watch periodically
 
 [Timer]
-OnBootSec=2min
+OnBootSec=5min
 OnUnitActiveSec=2min
-Unit=net-watch.service
+AccuracySec=30s
+Persistent=true
 
 [Install]
 WantedBy=timers.target
