@@ -30,13 +30,27 @@ echo "🗑 Removing main script..."
 rm -f /usr/local/sbin/net-reboot-if-down.sh
 
 # --------------------------------------------------------------------
-# 3. Reload systemd manager configuration
+# 3. Remove persistent state directory (optional, prompt user)
+# --------------------------------------------------------------------
+STATE_DIR="/var/lib/net-watch"
+if [[ -d "$STATE_DIR" ]]; then
+    read -r -p "🗑 Remove state directory $STATE_DIR (fail counter, reboot flag)? [y/N] " answer
+    if [[ "${answer,,}" == "y" ]]; then
+        rm -rf "$STATE_DIR"
+        echo "   Removed $STATE_DIR"
+    else
+        echo "   Kept $STATE_DIR (remove manually if desired)"
+    fi
+fi
+
+# --------------------------------------------------------------------
+# 4. Reload systemd manager configuration
 # --------------------------------------------------------------------
 systemctl daemon-reload
 systemctl reset-failed 2>/dev/null || true
 
 # --------------------------------------------------------------------
-# 4. Optional cleanup hint for hardware watchdog modules
+# 5. Optional cleanup hint for hardware watchdog modules
 # --------------------------------------------------------------------
 echo
 echo "⚙️  Hardware watchdog modules (iTCO_wdt) were left untouched."
@@ -46,7 +60,7 @@ echo "      rmmod iTCO_wdt iTCO_vendor_support 2>/dev/null || true"
 echo
 
 # --------------------------------------------------------------------
-# 5. Confirmation
+# 6. Confirmation
 # --------------------------------------------------------------------
 echo "✅ Net-watch uninstalled."
 echo
