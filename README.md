@@ -142,9 +142,11 @@ rm /var/lib/net-watch/rebooted.once
 ./uninstall.sh
 ```
 
-This disables the timer and removes:
+This disables the timer, removes all installed files, and optionally removes the state directory:
+
 - `/usr/local/sbin/net-reboot-if-down.sh`
 - `/etc/systemd/system/net-watch.{service,timer}`
+- `/var/lib/net-watch/` *(prompted — contains fail counter and reboot flag)*
 
 Hardware watchdog modules (`iTCO_wdt`) and `watchdog-mux` are left untouched.
 
