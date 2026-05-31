@@ -23,7 +23,13 @@ install -m 0644 "$SRC_DIR/systemd/net-watch.service" /etc/systemd/system/net-wat
 install -m 0644 "$SRC_DIR/systemd/net-watch.timer"   /etc/systemd/system/net-watch.timer
 
 # --------------------------------------------------------------------
-# 3. Optional: enable hardware watchdog kernel module (Intel ICH/TCO)
+# 3. Create persistent state directory
+# --------------------------------------------------------------------
+mkdir -p /var/lib/net-watch
+echo "📁 State directory: /var/lib/net-watch"
+
+# --------------------------------------------------------------------
+# 4. Optional: enable hardware watchdog kernel module (Intel ICH/TCO)
 # --------------------------------------------------------------------
 echo "📟 Loading optional hardware watchdog (iTCO_wdt) modules..."
 modprobe iTCO_vendor_support 2>/dev/null || true
@@ -34,14 +40,14 @@ grep -q '^iTCO_wdt$' /etc/modules-load.d/watchdog.conf 2>/dev/null \
   || echo iTCO_wdt >> /etc/modules-load.d/watchdog.conf
 
 # --------------------------------------------------------------------
-# 4. Activate the timer
+# 5. Activate the timer
 # --------------------------------------------------------------------
 echo "🚀 Enabling and starting net-watch.timer..."
 systemctl daemon-reload
 systemctl enable --now net-watch.timer
 
 # --------------------------------------------------------------------
-# 5. Summary
+# 6. Summary
 # --------------------------------------------------------------------
 echo
 echo "✅ Installation complete."
@@ -50,9 +56,13 @@ echo "Check status with:"
 echo "  systemctl list-timers --all | grep net-watch"
 echo "  journalctl -t net-watch -n 20 --no-pager"
 echo
-echo "Main script: /usr/local/sbin/net-reboot-if-down.sh"
-echo "Unit files : /etc/systemd/system/net-watch.{service,timer}"
+echo "Main script : /usr/local/sbin/net-reboot-if-down.sh"
+echo "Unit files  : /etc/systemd/system/net-watch.{service,timer}"
+echo "State dir   : /var/lib/net-watch/"
 echo
-echo "You can adjust ping targets or timing in:"
+echo "Adjust ping targets and timing in:"
 echo "  /usr/local/sbin/net-reboot-if-down.sh"
+echo
+echo "To reset the one-reboot lock after a recovery reboot:"
+echo "  rm /var/lib/net-watch/rebooted.once"
 echo
